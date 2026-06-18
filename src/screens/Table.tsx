@@ -182,7 +182,11 @@ export default function Table({
         <LifePanel code={code} uid={uid} room={room} />
         <div className="col" style={{ gap: 6 }}>
           <span className="muted">Library</span>
-          <LibraryActions code={code} uid={uid} />
+          <LibraryActions
+            code={code}
+            uid={uid}
+            allowMulligan={(meta.turnCount ?? 0) === 0}
+          />
         </div>
       </div>
 

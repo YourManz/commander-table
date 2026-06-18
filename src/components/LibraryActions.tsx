@@ -15,9 +15,11 @@ import CountButton from "./CountButton";
 export default function LibraryActions({
   code,
   uid,
+  allowMulligan,
 }: {
   code: string;
   uid: string;
+  allowMulligan: boolean;
 }) {
   const putCards = useUI((s) => s.putCards);
   const [scry, setScry] = useState<{
@@ -37,9 +39,11 @@ export default function LibraryActions({
 
   return (
     <div className="row" style={{ flexWrap: "wrap", gap: 4 }}>
-      <button className="primary" onClick={() => mulligan(code, uid, 7)}>
-        Opening hand / Mulligan
-      </button>
+      {allowMulligan && (
+        <button className="primary" onClick={() => mulligan(code, uid, 7)}>
+          Opening hand / Mulligan
+        </button>
+      )}
       <CountButton label="Draw" onApply={(n) => drawCards(code, uid, n)} />
       <CountButton label="Mill" onApply={(n) => millCards(code, uid, n)} />
       <CountButton label="Scry" onApply={(n) => startPeek("Scry", n)} />

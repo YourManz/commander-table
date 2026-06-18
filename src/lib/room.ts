@@ -45,6 +45,7 @@ export async function createRoom(
     commander: fmt.commander,
     status: "lobby",
     turnSeat: 0,
+    turnCount: 0,
     phase: "Main 1",
     monarchUid: null,
     skipDraw: false,

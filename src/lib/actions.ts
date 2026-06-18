@@ -430,6 +430,7 @@ export async function passTurn(code: string) {
 
   await update(ref(db, `rooms/${code}/meta`), {
     turnSeat: nextSeat,
+    turnCount: (meta.turnCount ?? 0) + 1,
     phase: "Main 1",
     skipDraw: false,
   });
@@ -510,6 +511,7 @@ export async function resetGame(code: string) {
   const updates: Record<string, unknown> = {
     "meta/status": "lobby",
     "meta/turnSeat": 0,
+    "meta/turnCount": 0,
     "meta/phase": "Main 1",
     "meta/monarchUid": null,
     "meta/skipDraw": false,

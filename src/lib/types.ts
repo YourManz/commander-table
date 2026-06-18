@@ -37,6 +37,7 @@ export interface RoomMeta {
   commander: boolean;
   status: "lobby" | "playing";
   turnSeat: number;
+  turnCount: number; // number of turns passed since the game/reset started
   phase: string;
   monarchUid: string | null;
   skipDraw: boolean; // skip the next auto-draw for the active turn
