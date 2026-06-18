@@ -95,11 +95,8 @@ export async function loadDeck(code: string, uid: string, deck: ParsedDeck) {
     card.tokenIds.forEach((t) => tokenIds.add(t));
     for (let i = 0; i < entry.qty; i++) {
       const id = genInstanceId();
-      cardmap[id] = {
-        scryfallId: card.id,
-        name: card.name,
-        meldResultId: card.meldResultId ?? undefined,
-      };
+      cardmap[id] = { scryfallId: card.id, name: card.name };
+      if (card.meldResultId) cardmap[id].meldResultId = card.meldResultId;
       if (entry.commander) {
         command.push(id);
         cardRegistry[id] = {
