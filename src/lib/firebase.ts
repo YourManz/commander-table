@@ -1,6 +1,11 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { getDatabase } from "firebase/database";
+import {
+  getAuth,
+  signInAnonymously,
+  onAuthStateChanged,
+  type Auth,
+} from "firebase/auth";
+import { getDatabase, type Database } from "firebase/database";
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,15 +19,18 @@ export const firebaseConfigured = Boolean(
   config.apiKey && config.databaseURL && config.projectId,
 );
 
-const app = initializeApp(config);
-export const auth = getAuth(app);
-export const db = getDatabase(app);
+// Only initialize when configured — getDatabase()/getAuth() throw on an empty
+// config, which would white-screen the app before the setup notice can render.
+const app = firebaseConfigured ? initializeApp(config) : null;
+export const auth: Auth = app ? getAuth(app) : ({} as Auth);
+export const db: Database = app ? getDatabase(app) : ({} as Database);
 
 let uidResolve: (uid: string) => void;
 export const uidReady = new Promise<string>((res) => (uidResolve = res));
 
 // Sign in anonymously on load; resolve uidReady once we have a uid.
 export function startAuth() {
+  if (!firebaseConfigured) return;
   onAuthStateChanged(auth, (user) => {
     if (user) uidResolve(user.uid);
   });
