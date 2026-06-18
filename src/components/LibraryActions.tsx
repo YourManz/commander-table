@@ -10,6 +10,7 @@ import {
 import { resolveNames } from "../lib/scryfall";
 import { useUI } from "../store";
 import ScryModal from "./ScryModal";
+import CountButton from "./CountButton";
 
 export default function LibraryActions({
   code,
@@ -26,11 +27,9 @@ export default function LibraryActions({
     n: number;
   } | null>(null);
 
-  async function startPeek(kind: "Scry" | "Surveil") {
-    const n = Number(prompt(`${kind} how many?`, "1"));
+  async function startPeek(kind: "Scry" | "Surveil", n: number) {
     if (!n || n < 1) return;
     const top = await peekTop(code, uid, n);
-    // warm the image cache for these names
     const resolved = await resolveNames(top.map((t) => t.name));
     putCards([...resolved.values()]);
     setScry({ title: `${kind} ${n}`, cards: top, allowGrave: kind === "Surveil", n });
@@ -41,17 +40,10 @@ export default function LibraryActions({
       <button className="primary" onClick={() => mulligan(code, uid, 7)}>
         Opening hand / Mulligan
       </button>
-      <button onClick={() => drawCards(code, uid, 1)}>Draw</button>
-      <button
-        onClick={() => {
-          const n = Number(prompt("Mill how many?", "1"));
-          if (n > 0) millCards(code, uid, n);
-        }}
-      >
-        Mill
-      </button>
-      <button onClick={() => startPeek("Scry")}>Scry</button>
-      <button onClick={() => startPeek("Surveil")}>Surveil</button>
+      <CountButton label="Draw" onApply={(n) => drawCards(code, uid, n)} />
+      <CountButton label="Mill" onApply={(n) => millCards(code, uid, n)} />
+      <CountButton label="Scry" onApply={(n) => startPeek("Scry", n)} />
+      <CountButton label="Surveil" onApply={(n) => startPeek("Surveil", n)} />
       <button onClick={() => shuffleLibrary(code, uid)}>Shuffle</button>
 
       {scry && (

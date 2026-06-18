@@ -48,6 +48,7 @@ export default function Seat({
     title: string;
     cards: ViewerCard[];
     actions?: { label: string; fn: (id: string) => void }[];
+    fromZone?: string;
   } | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
@@ -72,7 +73,12 @@ export default function Seat({
             { label: "To battlefield", fn: (id: string) => moveCard(code, viewerUid, id, zone, "battlefield") },
           ]
         : undefined;
-    setViewer({ title: titleMap[zone], cards: list, actions });
+    setViewer({
+      title: titleMap[zone],
+      cards: list,
+      actions,
+      fromZone: isSelf ? zone : undefined,
+    });
   }
 
   async function openLibrary() {
@@ -81,6 +87,7 @@ export default function Seat({
     setViewer({
       title: "Library (search)",
       cards: list,
+      fromZone: "library",
       actions: [
         { label: "To hand", fn: (id: string) => moveCard(code, viewerUid, id, "library", "hand").then(() => shuffleLibrary(code, viewerUid)) },
         { label: "To battlefield", fn: (id: string) => moveCard(code, viewerUid, id, "library", "battlefield").then(() => shuffleLibrary(code, viewerUid)) },
@@ -298,6 +305,7 @@ export default function Seat({
           title={viewer.title}
           cards={viewer.cards}
           actions={viewer.actions}
+          fromZone={viewer.fromZone}
           onClose={() => setViewer(null)}
         />
       )}
