@@ -1,0 +1,320 @@
+:root {
+  --bg: #0e1116;
+  --panel: #171c24;
+  --panel-2: #1f2630;
+  --line: #2b3340;
+  --ink: #e6eaf0;
+  --muted: #8b97a8;
+  --accent: #6ea8fe;
+  --accent-soft: #1d3354;
+  --warn: #f0a35e;
+  --ok: #6ee7a8;
+  --danger: #f06e6e;
+  --radius: 8px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+}
+
+button {
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+button:hover {
+  border-color: var(--accent);
+}
+button.primary {
+  background: var(--accent);
+  color: #07101f;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--muted);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+}
+.pill.accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.card-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+/* ---------- centered screens ---------- */
+.center-screen {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.center-box {
+  width: 420px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.title {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- table ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+.spacer {
+  flex: 1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow: auto;
+  flex: 1;
+}
+.field.fit-all {
+  display: grid;
+  gap: 10px;
+}
+
+.seat {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.seat.active {
+  border-color: var(--accent);
+}
+.seat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.battlefield {
+  position: relative;
+  background: var(--panel-2);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  min-height: 160px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.mtg-card {
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  overflow: hidden;
+  user-select: none;
+}
+.mtg-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.mtg-card .ph {
+  padding: 4px;
+  font-size: 10px;
+  line-height: 1.1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.bf-card {
+  position: absolute;
+  width: 74px;
+  height: 103px;
+  cursor: grab;
+}
+.bf-card.tapped {
+  transform: rotate(90deg);
+}
+.bf-card.selected {
+  outline: 2px solid var(--accent);
+}
+.counter-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: var(--accent);
+  color: #07101f;
+  border-radius: 999px;
+  font-size: 10px;
+  padding: 0 5px;
+  font-weight: 700;
+}
+
+.hand {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  align-items: center;
+}
+.hand .mtg-card {
+  width: 70px;
+  height: 98px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.zone-stack {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  background: var(--panel-2);
+}
+.zone-stack:hover {
+  border-color: var(--accent);
+}
+
+.sidepanel {
+  width: 230px;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  width: 560px;
+  max-width: 100%;
+  max-height: 86vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+}
+.grid-cards .mtg-card {
+  width: 100%;
+  aspect-ratio: 5 / 7;
+}
+
+.log {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.log .muted {
+  font-size: 11px;
+}
+.chatbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-top: 1px solid var(--line);
+}
+.chatbar input {
+  flex: 1;
+}
