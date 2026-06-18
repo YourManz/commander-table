@@ -42,10 +42,17 @@ export default function Hand({
           <div
             key={id}
             className="mtg-card"
-            title="Left-click or right-click for actions"
+            title="Drag to battlefield, or click for actions"
+            draggable
+            onDragStart={(e) =>
+              e.dataTransfer.setData(
+                "text/plain",
+                JSON.stringify({ id, from: "hand" }),
+              )
+            }
             onClick={(e) => openMenu(e, id)}
             onContextMenu={(e) => openMenu(e, id)}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "grab" }}
           >
             <CardView scryfallId={c?.scryfallId} name={c?.name} />
           </div>

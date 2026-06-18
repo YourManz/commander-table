@@ -3,6 +3,7 @@ import type { RoomSnapshot } from "../lib/types";
 import { getFormat } from "../lib/formats";
 import { startGame } from "../lib/room";
 import { useUI } from "../store";
+import { seatColor } from "../lib/colors";
 import ImportDialog from "../components/ImportDialog";
 
 export default function Lobby({
@@ -48,6 +49,15 @@ export default function Lobby({
             const p = players.find((pl) => pl.seat === seat);
             return (
               <div key={seat} className="row">
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    background: seatColor(seat),
+                    flex: "0 0 auto",
+                  }}
+                />
                 <span className="muted" style={{ width: 50 }}>
                   Seat {seat + 1}
                 </span>

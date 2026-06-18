@@ -24,6 +24,7 @@ import LogChat from "../components/LogChat";
 import ResetDialog from "../components/ResetDialog";
 import HotkeyHelp from "../components/HotkeyHelp";
 import ScryModal from "../components/ScryModal";
+import CardPreview from "../components/CardPreview";
 
 export default function Table({
   code,
@@ -128,7 +129,7 @@ export default function Table({
         </button>
         <TokenTray code={code} uid={uid} tray={priv.tray} />
         <DiceWidget code={code} uid={uid} />
-        <button onClick={() => setShowHelp(true)}>?</button>
+        <button onClick={() => setShowHelp(true)}>⌨ Hotkeys</button>
         <button className="danger" onClick={() => setShowReset(true)}>
           Reset
         </button>
@@ -183,6 +184,8 @@ export default function Table({
       </div>
 
       <Hand code={code} uid={uid} hand={priv.hand} cardmap={priv.cardmap} />
+
+      <CardPreview />
 
       {showReset && <ResetDialog code={code} onClose={() => setShowReset(false)} />}
       {showHelp && <HotkeyHelp onClose={() => setShowHelp(false)} />}

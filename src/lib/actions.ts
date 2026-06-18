@@ -284,6 +284,20 @@ export async function drawCards(code: string, uid: string, n = 1) {
   await writeCounts(code, uid);
 }
 
+// Shuffle the current hand back into the library and draw a fresh hand.
+export async function mulligan(code: string, uid: string, n = 7) {
+  const handPath = privRef(code, uid, "hand");
+  const libPath = privRef(code, uid, "library");
+  const hand = await getArray(handPath);
+  const lib = await getArray(libPath);
+  const combined = shuffle([...lib, ...hand]);
+  const draw = combined.splice(combined.length - n, n).reverse();
+  await set(libPath, combined);
+  await set(handPath, draw);
+  await writeCounts(code, uid);
+  await logAction(code, uid, `drew a new hand of ${draw.length}`);
+}
+
 export async function millCards(code: string, uid: string, n = 1) {
   const libPath = privRef(code, uid, "library");
   const lib = await getArray(libPath);

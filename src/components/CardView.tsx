@@ -16,6 +16,7 @@ export default function CardView({
 }) {
   useCards(scryfallId ? [scryfallId] : []);
   const card = useUI((s) => (scryfallId ? s.cardCache[scryfallId] : undefined));
+  const setPreview = useUI((s) => s.setPreview);
 
   if (faceDown) {
     return (
@@ -31,8 +32,14 @@ export default function CardView({
   }
 
   const img = back ? card?.backImage ?? card?.image : card?.image;
+  const hover = scryfallId
+    ? {
+        onMouseEnter: () => setPreview({ scryfallId, back }),
+        onMouseLeave: () => setPreview(null),
+      }
+    : {};
   return (
-    <div className="mtg-card" style={{ width: "100%", height: "100%" }}>
+    <div className="mtg-card" style={{ width: "100%", height: "100%" }} {...hover}>
       {img ? (
         <img src={img} alt={card?.name ?? name ?? ""} loading="lazy" />
       ) : (

@@ -13,6 +13,10 @@ interface UIState {
   selectedCard: string | null;
   setSelectedCard: (id: string | null) => void;
 
+  // hover preview (large image)
+  preview: { scryfallId: string; back: boolean } | null;
+  setPreview: (p: { scryfallId: string; back: boolean } | null) => void;
+
   // resolved scryfall cards cache (in-memory mirror of IndexedDB)
   cardCache: Record<string, ScryCard>;
   putCards: (cards: ScryCard[]) => void;
@@ -31,6 +35,9 @@ export const useUI = create<UIState>((set) => ({
   setFocusedSeat: (focusedSeat) => set({ focusedSeat }),
   selectedCard: null,
   setSelectedCard: (selectedCard) => set({ selectedCard }),
+
+  preview: null,
+  setPreview: (preview) => set({ preview }),
 
   cardCache: {},
   putCards: (cards) =>

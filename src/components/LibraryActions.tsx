@@ -5,6 +5,7 @@ import {
   peekTop,
   applyScry,
   shuffleLibrary,
+  mulligan,
 } from "../lib/actions";
 import { resolveNames } from "../lib/scryfall";
 import { useUI } from "../store";
@@ -37,6 +38,9 @@ export default function LibraryActions({
 
   return (
     <div className="row" style={{ flexWrap: "wrap", gap: 4 }}>
+      <button className="primary" onClick={() => mulligan(code, uid, 7)}>
+        Opening hand / Mulligan
+      </button>
       <button onClick={() => drawCards(code, uid, 1)}>Draw</button>
       <button
         onClick={() => {

@@ -4,6 +4,7 @@ import CardView from "./CardView";
 import Menu, { type MenuItem } from "./Menu";
 import ZoneViewer, { type ViewerCard } from "./ZoneViewer";
 import { useUI } from "../store";
+import { seatColor } from "../lib/colors";
 import {
   moveCard,
   moveToLibrary,
@@ -118,6 +119,31 @@ export default function Seat({
     drag.current = null;
   }
 
+  // Accept a card dragged from the hand (or another zone) onto the battlefield.
+  function onFieldDrop(e: React.DragEvent) {
+    if (!isSelf || !fieldRef.current) return;
+    const raw = e.dataTransfer.getData("text/plain");
+    if (!raw) return;
+    e.preventDefault();
+    let data: { id: string; from: string };
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    const rect = fieldRef.current.getBoundingClientRect();
+    const x = Math.max(0, e.clientX - rect.left - 37);
+    const y = Math.max(0, e.clientY - rect.top - 51);
+    moveCard(
+      code,
+      viewerUid,
+      data.id,
+      data.from as never,
+      "battlefield",
+      { x, y },
+    );
+  }
+
   function openCardMenu(e: React.MouseEvent, id: string, card: BattlefieldCard) {
     if (!isSelf) return;
     e.preventDefault();
@@ -164,9 +190,23 @@ export default function Seat({
     ? Object.values(life.cmdDmg ?? {}).reduce((a, b) => a + b, 0)
     : 0;
 
+  const color = seatColor(player?.seat ?? 0);
+
   return (
-    <div className={"seat" + (active ? " active" : "")}>
+    <div
+      className={"seat" + (active ? " active" : "")}
+      style={{ borderLeft: `4px solid ${color}` }}
+    >
       <div className="seat-head">
+        <span
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            background: color,
+            flex: "0 0 auto",
+          }}
+        />
         <strong style={{ flex: 1 }}>
           {player?.name ?? "—"}
           {isSelf && " (you)"}
@@ -206,6 +246,8 @@ export default function Seat({
         onMouseMove={onFieldMouseMove}
         onMouseUp={onFieldMouseUp}
         onMouseLeave={onFieldMouseUp}
+        onDragOver={(e) => isSelf && e.preventDefault()}
+        onDrop={onFieldDrop}
       >
         {Object.entries(bf).map(([id, card]) => {
           const reg = cards[id];
