@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { BattlefieldCard, RoomSnapshot } from "../lib/types";
+import type { BattlefieldCard, RoomSnapshot, ZoneName } from "../lib/types";
 import CardView from "./CardView";
 import Menu, { type MenuItem } from "./Menu";
 import ZoneViewer, { type ViewerCard } from "./ZoneViewer";
@@ -14,10 +14,19 @@ import {
   shuffleLibrary,
 } from "../lib/actions";
 
+const CARD_W = 74;
+const CARD_H = 103;
+
 interface MenuState {
   x: number;
   y: number;
   items: MenuItem[];
+}
+interface Marquee {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 }
 
 export default function Seat({
@@ -40,10 +49,15 @@ export default function Seat({
   const counts = room.counts[seatUid] ?? { hand: 0, library: 0 };
   const cards = room.cards;
   const bf = (zones.battlefield ?? {}) as Record<string, BattlefieldCard>;
-  const selectedCard = useUI((s) => s.selectedCard);
-  const setSelectedCard = useUI((s) => s.setSelectedCard);
+
+  const selectedCards = useUI((s) => s.selectedCards);
+  const setSelection = useUI((s) => s.setSelection);
+  const toggleSelection = useUI((s) => s.toggleSelection);
+  const clearSelection = useUI((s) => s.clearSelection);
+  const cardCache = useUI((s) => s.cardCache);
 
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
   const [viewer, setViewer] = useState<{
     title: string;
     cards: ViewerCard[];
@@ -52,8 +66,10 @@ export default function Seat({
   } | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  const marqueeRef = useRef<Marquee | null>(null);
 
-  const cardCache = useUI((s) => s.cardCache);
+  // cards currently selected that actually live on THIS battlefield
+  const selectedHere = selectedCards.filter((id) => bf[id]);
 
   function zoneCards(zone: "graveyard" | "exile" | "command"): ViewerCard[] {
     return (zones[zone] ?? []).map((id) => ({
@@ -66,19 +82,13 @@ export default function Seat({
   function openZone(zone: "graveyard" | "exile" | "command") {
     const titleMap = { graveyard: "Graveyard", exile: "Exile", command: "Command zone" };
     const list = zoneCards(zone);
-    const actions =
-      isSelf
-        ? [
-            { label: "To hand", fn: (id: string) => moveCard(code, viewerUid, id, zone, "hand") },
-            { label: "To battlefield", fn: (id: string) => moveCard(code, viewerUid, id, zone, "battlefield") },
-          ]
-        : undefined;
-    setViewer({
-      title: titleMap[zone],
-      cards: list,
-      actions,
-      fromZone: isSelf ? zone : undefined,
-    });
+    const actions = isSelf
+      ? [
+          { label: "To hand", fn: (id: string) => moveCard(code, viewerUid, id, zone, "hand") },
+          { label: "To battlefield", fn: (id: string) => moveCard(code, viewerUid, id, zone, "battlefield") },
+        ]
+      : undefined;
+    setViewer({ title: titleMap[zone], cards: list, actions, fromZone: isSelf ? zone : undefined });
   }
 
   async function openLibrary() {
@@ -95,38 +105,86 @@ export default function Seat({
     });
   }
 
-  // ---- battlefield drag (self only) ----
+  // ---- card drag (self only) ----
   function onCardMouseDown(e: React.MouseEvent, id: string, card: BattlefieldCard) {
     if (!isSelf || e.button !== 0) return;
+    if (e.shiftKey) {
+      toggleSelection(id);
+      return;
+    }
+    if (!selectedCards.includes(id)) setSelection([id]);
     const rect = fieldRef.current!.getBoundingClientRect();
     drag.current = {
       id,
       dx: e.clientX - rect.left - card.x,
       dy: e.clientY - rect.top - card.y,
     };
-    setSelectedCard(id);
-  }
-  function onFieldMouseMove(e: React.MouseEvent) {
-    if (!drag.current || !fieldRef.current) return;
-    const rect = fieldRef.current.getBoundingClientRect();
-    const x = Math.max(0, e.clientX - rect.left - drag.current.dx);
-    const y = Math.max(0, e.clientY - rect.top - drag.current.dy);
-    const el = document.getElementById("bf-" + drag.current.id);
-    if (el) {
-      el.style.left = x + "px";
-      el.style.top = y + "px";
-    }
-  }
-  function onFieldMouseUp(e: React.MouseEvent) {
-    if (!drag.current || !fieldRef.current) return;
-    const rect = fieldRef.current.getBoundingClientRect();
-    const x = Math.max(0, e.clientX - rect.left - drag.current.dx);
-    const y = Math.max(0, e.clientY - rect.top - drag.current.dy);
-    updateBattlefieldCard(code, viewerUid, drag.current.id, { x, y });
-    drag.current = null;
   }
 
-  // Accept a card dragged from the hand (or another zone) onto the battlefield.
+  function onFieldMouseDown(e: React.MouseEvent) {
+    if (!isSelf || e.button !== 0) return;
+    if (e.target !== fieldRef.current) return; // started on a card
+    if (!e.shiftKey) clearSelection();
+    const rect = fieldRef.current.getBoundingClientRect();
+    const m = {
+      x0: e.clientX - rect.left,
+      y0: e.clientY - rect.top,
+      x1: e.clientX - rect.left,
+      y1: e.clientY - rect.top,
+    };
+    marqueeRef.current = m;
+    setMarquee(m);
+  }
+
+  function onFieldMouseMove(e: React.MouseEvent) {
+    if (!fieldRef.current) return;
+    const rect = fieldRef.current.getBoundingClientRect();
+    if (drag.current) {
+      const x = Math.max(0, e.clientX - rect.left - drag.current.dx);
+      const y = Math.max(0, e.clientY - rect.top - drag.current.dy);
+      const el = document.getElementById("bf-" + drag.current.id);
+      if (el) {
+        el.style.left = x + "px";
+        el.style.top = y + "px";
+      }
+    } else if (marqueeRef.current) {
+      const m = { ...marqueeRef.current, x1: e.clientX - rect.left, y1: e.clientY - rect.top };
+      marqueeRef.current = m;
+      setMarquee(m);
+    }
+  }
+
+  function onFieldMouseUp(e: React.MouseEvent) {
+    if (!fieldRef.current) return;
+    const rect = fieldRef.current.getBoundingClientRect();
+    if (drag.current) {
+      const x = Math.max(0, e.clientX - rect.left - drag.current.dx);
+      const y = Math.max(0, e.clientY - rect.top - drag.current.dy);
+      updateBattlefieldCard(code, viewerUid, drag.current.id, { x, y });
+      drag.current = null;
+    } else if (marqueeRef.current) {
+      const m = marqueeRef.current;
+      const minX = Math.min(m.x0, m.x1);
+      const maxX = Math.max(m.x0, m.x1);
+      const minY = Math.min(m.y0, m.y1);
+      const maxY = Math.max(m.y0, m.y1);
+      const hits = Object.entries(bf)
+        .filter(
+          ([, c]) =>
+            c.x < maxX && c.x + CARD_W > minX && c.y < maxY && c.y + CARD_H > minY,
+        )
+        .map(([id]) => id);
+      if (hits.length) {
+        setSelection(
+          e.shiftKey ? [...new Set([...selectedCards, ...hits])] : hits,
+        );
+      }
+      marqueeRef.current = null;
+      setMarquee(null);
+    }
+  }
+
+  // ---- group / single card menu ----
   function onFieldDrop(e: React.DragEvent) {
     if (!isSelf || !fieldRef.current) return;
     const raw = e.dataTransfer.getData("text/plain");
@@ -139,81 +197,77 @@ export default function Seat({
       return;
     }
     const rect = fieldRef.current.getBoundingClientRect();
-    const x = Math.max(0, e.clientX - rect.left - 37);
-    const y = Math.max(0, e.clientY - rect.top - 51);
-    moveCard(
-      code,
-      viewerUid,
-      data.id,
-      data.from as never,
-      "battlefield",
-      { x, y },
-    );
+    const x = Math.max(0, e.clientX - rect.left - CARD_W / 2);
+    const y = Math.max(0, e.clientY - rect.top - CARD_H / 2);
+    moveCard(code, viewerUid, data.id, data.from as ZoneName, "battlefield", { x, y });
   }
 
   function openCardMenu(e: React.MouseEvent, id: string, card: BattlefieldCard) {
     if (!isSelf) return;
     e.preventDefault();
+    // if right-clicking a selected card within a multi-selection, act on the group
+    const group = selectedHere.length > 1 && selectedHere.includes(id);
+    const targets = group ? selectedHere : [id];
     const reg = cards[id];
     const sc = reg ? cardCache[reg.scryfallId] : undefined;
     const hasBack = !!sc?.backImage;
+
+    const each = (fn: (tid: string) => void) => () => targets.forEach(fn);
     const items: MenuItem[] = [
       {
-        label: card.tapped ? "Untap" : "Tap",
-        fn: () => updateBattlefieldCard(code, viewerUid, id, { tapped: !card.tapped }),
-      },
-      {
-        label: card.faceDown ? "Turn face up" : "Turn face down",
-        fn: () => updateBattlefieldCard(code, viewerUid, id, { faceDown: !card.faceDown }),
+        label: group ? `Tap ${targets.length}` : card.tapped ? "Untap" : "Tap",
+        fn: each((tid) =>
+          updateBattlefieldCard(code, viewerUid, tid, {
+            tapped: group ? true : !bf[tid].tapped,
+          }),
+        ),
       },
     ];
-    if (hasBack)
+    if (group)
+      items.push({
+        label: `Untap ${targets.length}`,
+        fn: each((tid) => updateBattlefieldCard(code, viewerUid, tid, { tapped: false })),
+      });
+    if (!group && hasBack)
       items.push({
         label: card.flipped ? "Flip to front" : "Flip (DFC)",
         fn: () => updateBattlefieldCard(code, viewerUid, id, { flipped: !card.flipped }),
       });
+    if (!group)
+      items.push({
+        label: card.faceDown ? "Turn face up" : "Turn face down",
+        fn: () => updateBattlefieldCard(code, viewerUid, id, { faceDown: !card.faceDown }),
+      });
     items.push(
       {
         label: "+1/+1 counter",
-        fn: () =>
-          setCounter(code, viewerUid, id, "+1/+1", (card.counters?.["+1/+1"] ?? 0) + 1),
+        fn: each((tid) =>
+          setCounter(code, viewerUid, tid, "+1/+1", (bf[tid].counters?.["+1/+1"] ?? 0) + 1),
+        ),
       },
-      {
-        label: "Remove +1/+1",
-        fn: () =>
-          setCounter(code, viewerUid, id, "+1/+1", (card.counters?.["+1/+1"] ?? 0) - 1),
-      },
-      { label: "→ Hand", fn: () => moveCard(code, viewerUid, id, "battlefield", "hand") },
-      { label: "→ Graveyard", fn: () => moveCard(code, viewerUid, id, "battlefield", "graveyard") },
-      { label: "→ Exile", fn: () => moveCard(code, viewerUid, id, "battlefield", "exile") },
-      { label: "→ Command", fn: () => moveCard(code, viewerUid, id, "battlefield", "command") },
-      { label: "→ Library top", fn: () => moveToLibrary(code, viewerUid, id, "battlefield", true) },
-      { label: "→ Library bottom", fn: () => moveToLibrary(code, viewerUid, id, "battlefield", false) },
+      { label: "→ Hand", fn: each((tid) => moveCard(code, viewerUid, tid, "battlefield", "hand")) },
+      { label: "→ Graveyard", fn: each((tid) => moveCard(code, viewerUid, tid, "battlefield", "graveyard")) },
+      { label: "→ Exile", fn: each((tid) => moveCard(code, viewerUid, tid, "battlefield", "exile")) },
+      { label: "→ Command", fn: each((tid) => moveCard(code, viewerUid, tid, "battlefield", "command")) },
+      { label: "→ Library top", fn: each((tid) => moveToLibrary(code, viewerUid, tid, "battlefield", true)) },
     );
     setMenu({ x: e.clientX, y: e.clientY, items });
+  }
+
+  // ---- group action bar buttons ----
+  function groupAction(fn: (id: string) => void) {
+    selectedHere.forEach(fn);
   }
 
   const cmdDmgTotal = life
     ? Object.values(life.cmdDmg ?? {}).reduce((a, b) => a + b, 0)
     : 0;
-
   const color = seatColor(player?.seat ?? 0);
 
   return (
-    <div
-      className={"seat" + (active ? " active" : "")}
-      style={{ borderLeft: `4px solid ${color}` }}
-    >
+    <div className={"seat" + (active ? " active" : "")} style={{ borderLeft: `4px solid ${color}` }}>
       <div className="seat-head">
-        <span
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            background: color,
-            flex: "0 0 auto",
-          }}
-        />
+        <span style={{ width: 10, height: 10, borderRadius: 999, background: color, flex: "0 0 auto" }} />
         <strong style={{ flex: 1 }}>
           {player?.name ?? "—"}
           {isSelf && " (you)"}
@@ -234,11 +288,7 @@ export default function Seat({
         <span className="zone-stack" onClick={() => openZone("exile")}>
           Exile {zones.exile?.length ?? 0}
         </span>
-        <span
-          className="zone-stack"
-          onClick={openLibrary}
-          title={isSelf ? "Search your library" : "Hidden"}
-        >
+        <span className="zone-stack" onClick={openLibrary} title={isSelf ? "Search your library" : "Hidden"}>
           Library {counts.library}
         </span>
         <span className="zone-stack" style={{ cursor: "default" }}>
@@ -250,12 +300,40 @@ export default function Seat({
       <div
         className="battlefield"
         ref={fieldRef}
+        onMouseDown={onFieldMouseDown}
         onMouseMove={onFieldMouseMove}
         onMouseUp={onFieldMouseUp}
         onMouseLeave={onFieldMouseUp}
         onDragOver={(e) => isSelf && e.preventDefault()}
         onDrop={onFieldDrop}
       >
+        {isSelf && selectedHere.length > 1 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 4,
+              left: 4,
+              zIndex: 5,
+              display: "flex",
+              gap: 4,
+              flexWrap: "wrap",
+              background: "var(--panel)",
+              border: "1px solid var(--accent)",
+              borderRadius: "var(--radius)",
+              padding: 4,
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <span className="pill accent">{selectedHere.length} selected</span>
+            <button onClick={() => groupAction((id) => updateBattlefieldCard(code, viewerUid, id, { tapped: true }))} style={{ fontSize: 11 }}>Tap</button>
+            <button onClick={() => groupAction((id) => updateBattlefieldCard(code, viewerUid, id, { tapped: false }))} style={{ fontSize: 11 }}>Untap</button>
+            <button onClick={() => { groupAction((id) => moveCard(code, viewerUid, id, "battlefield", "graveyard")); clearSelection(); }} style={{ fontSize: 11 }}>→ GY</button>
+            <button onClick={() => { groupAction((id) => moveCard(code, viewerUid, id, "battlefield", "exile")); clearSelection(); }} style={{ fontSize: 11 }}>→ Exile</button>
+            <button onClick={() => { groupAction((id) => moveCard(code, viewerUid, id, "battlefield", "hand")); clearSelection(); }} style={{ fontSize: 11 }}>→ Hand</button>
+            <button onClick={() => clearSelection()} style={{ fontSize: 11 }}>clear</button>
+          </div>
+        )}
+
         {Object.entries(bf).map(([id, card]) => {
           const reg = cards[id];
           return (
@@ -265,19 +343,13 @@ export default function Seat({
               className={
                 "bf-card" +
                 (card.tapped ? " tapped" : "") +
-                (selectedCard === id ? " selected" : "")
+                (selectedCards.includes(id) ? " selected" : "")
               }
               style={{ left: card.x, top: card.y }}
               onMouseDown={(e) => onCardMouseDown(e, id, card)}
-              onClick={() => setSelectedCard(id)}
               onContextMenu={(e) => openCardMenu(e, id, card)}
             >
-              <CardView
-                scryfallId={reg?.scryfallId}
-                name={reg?.name}
-                back={card.flipped}
-                faceDown={card.faceDown}
-              />
+              <CardView scryfallId={reg?.scryfallId} name={reg?.name} back={card.flipped} faceDown={card.faceDown} />
               {card.counters &&
                 Object.entries(card.counters).map(([k, v]) =>
                   v ? (
@@ -289,12 +361,26 @@ export default function Seat({
             </div>
           );
         })}
-        {isSelf && (
+
+        {marquee && (
           <div
-            className="muted"
-            style={{ position: "absolute", bottom: 4, left: 6, fontSize: 11 }}
-          >
-            right-click a card for actions · drag to move
+            style={{
+              position: "absolute",
+              left: Math.min(marquee.x0, marquee.x1),
+              top: Math.min(marquee.y0, marquee.y1),
+              width: Math.abs(marquee.x1 - marquee.x0),
+              height: Math.abs(marquee.y1 - marquee.y0),
+              border: "1px solid var(--accent)",
+              background: "rgba(110,168,254,0.15)",
+              zIndex: 4,
+              pointerEvents: "none",
+            }}
+          />
+        )}
+
+        {isSelf && (
+          <div className="muted" style={{ position: "absolute", bottom: 4, left: 6, fontSize: 11 }}>
+            drag empty space to box-select · shift-click to add · right-click for actions
           </div>
         )}
       </div>

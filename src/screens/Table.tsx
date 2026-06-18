@@ -39,7 +39,7 @@ export default function Table({
   const name = useUI((s) => s.name);
   const focusedSeat = useUI((s) => s.focusedSeat);
   const setFocusedSeat = useUI((s) => s.setFocusedSeat);
-  const selectedCard = useUI((s) => s.selectedCard);
+  const selectedCards = useUI((s) => s.selectedCards);
   const putCards = useUI((s) => s.putCards);
   const priv = usePrivate(code, uid);
 
@@ -85,9 +85,12 @@ export default function Table({
   }
 
   function tapSelected() {
-    if (!selectedCard) return;
-    const card = room.zones[uid]?.battlefield?.[selectedCard];
-    if (card) updateBattlefieldCard(code, uid, selectedCard, { tapped: !card.tapped });
+    const bf = room.zones[uid]?.battlefield ?? {};
+    const ids = selectedCards.filter((id) => bf[id]);
+    if (!ids.length) return;
+    // toggle: if any selected is untapped, tap all; else untap all
+    const anyUntapped = ids.some((id) => !bf[id].tapped);
+    ids.forEach((id) => updateBattlefieldCard(code, uid, id, { tapped: anyUntapped }));
   }
 
   function untapAll() {

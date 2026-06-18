@@ -10,8 +10,12 @@ interface UIState {
   // table UI
   focusedSeat: number | null; // null = fit all
   setFocusedSeat: (seat: number | null) => void;
-  selectedCard: string | null;
-  setSelectedCard: (id: string | null) => void;
+
+  // multi-select of battlefield cards (instanceIds)
+  selectedCards: string[];
+  setSelection: (ids: string[]) => void;
+  toggleSelection: (id: string) => void;
+  clearSelection: () => void;
 
   // hover preview (large image)
   preview: { scryfallId: string; back: boolean } | null;
@@ -33,8 +37,16 @@ export const useUI = create<UIState>((set) => ({
 
   focusedSeat: null,
   setFocusedSeat: (focusedSeat) => set({ focusedSeat }),
-  selectedCard: null,
-  setSelectedCard: (selectedCard) => set({ selectedCard }),
+
+  selectedCards: [],
+  setSelection: (selectedCards) => set({ selectedCards }),
+  toggleSelection: (id) =>
+    set((s) => ({
+      selectedCards: s.selectedCards.includes(id)
+        ? s.selectedCards.filter((x) => x !== id)
+        : [...s.selectedCards, id],
+    })),
+  clearSelection: () => set({ selectedCards: [] }),
 
   preview: null,
   setPreview: (preview) => set({ preview }),
