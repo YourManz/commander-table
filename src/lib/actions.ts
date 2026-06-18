@@ -457,6 +457,22 @@ export async function createToken(
   await logAction(code, uid, `created token: ${name}`);
 }
 
+// Put an arbitrary searched card into one of the owner's zones (testing/wishes).
+export async function putCardInPlay(
+  code: string,
+  uid: string,
+  scryfallId: string,
+  name: string,
+  zone: ZoneName,
+) {
+  const id = genInstanceId();
+  const cardmap = await getCardMap(code, uid);
+  cardmap[id] = { scryfallId, name };
+  await set(privRef(code, uid, "cardmap"), cardmap);
+  await addToZone(code, uid, id, zone);
+  await logAction(code, uid, `added ${name} to ${zone}`);
+}
+
 // ---------- meld ----------
 
 export async function meldCards(

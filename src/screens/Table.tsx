@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RoomSnapshot } from "../lib/types";
 import { useUI } from "../store";
 import { usePrivate } from "../hooks/useRoom";
@@ -25,6 +25,7 @@ import ResetDialog from "../components/ResetDialog";
 import HotkeyHelp from "../components/HotkeyHelp";
 import ScryModal from "../components/ScryModal";
 import CardPreview from "../components/CardPreview";
+import CardSearch from "../components/CardSearch";
 
 export default function Table({
   code,
@@ -45,6 +46,7 @@ export default function Table({
 
   const [showReset, setShowReset] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [scry, setScry] = useState<{
     title: string;
     cards: { id: string; name: string }[];
@@ -58,6 +60,38 @@ export default function Table({
     [room.players],
   );
   const mySeat = room.players[uid]?.seat ?? 0;
+
+  // Ping + title flash when the turn passes to me.
+  const prevTurn = useRef<number | null>(null);
+  useEffect(() => {
+    const turn = meta.turnSeat;
+    if (
+      prevTurn.current !== null &&
+      prevTurn.current !== turn &&
+      turn === mySeat
+    ) {
+      try {
+        const ctx = new (window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext })
+            .webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 660;
+        gain.gain.value = 0.08;
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.18);
+      } catch {
+        /* ignore */
+      }
+      const original = document.title;
+      document.title = "🔔 Your turn — Commander Table";
+      const reset = () => (document.title = original);
+      window.addEventListener("focus", reset, { once: true });
+      setTimeout(reset, 8000);
+    }
+    prevTurn.current = turn;
+  }, [meta.turnSeat, mySeat]);
 
   // Order seats so the local player is first (bottom-left in the grid).
   const ordered = useMemo(() => {
@@ -115,7 +149,7 @@ export default function Table({
       r: () => rollDie(code, uid, 20),
       "?": () => setShowHelp(true),
     },
-    !showReset && !showHelp && !scry,
+    !showReset && !showHelp && !scry && !showSearch,
   );
 
   return (
@@ -131,6 +165,7 @@ export default function Table({
           {focusedSeat === null ? "Focus my board" : "Fit all"}
         </button>
         <TokenTray code={code} uid={uid} tray={priv.tray} />
+        <button onClick={() => setShowSearch(true)}>Search</button>
         <DiceWidget code={code} uid={uid} />
         <button onClick={() => setShowHelp(true)}>⌨ Hotkeys</button>
         <button className="danger" onClick={() => setShowReset(true)}>
@@ -196,6 +231,7 @@ export default function Table({
 
       {showReset && <ResetDialog code={code} onClose={() => setShowReset(false)} />}
       {showHelp && <HotkeyHelp onClose={() => setShowHelp(false)} />}
+      {showSearch && <CardSearch code={code} uid={uid} onClose={() => setShowSearch(false)} />}
       {scry && (
         <ScryModal
           title={scry.title}

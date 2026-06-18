@@ -65,10 +65,10 @@ export default function Seat({
     fromZone?: string;
   } | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  const drag = useRef<{ id: string; dx: number; dy: number; moved: boolean } | null>(null);
   const marqueeRef = useRef<Marquee | null>(null);
+  const press = useRef<{ timer: number; x: number; y: number } | null>(null);
 
-  // cards currently selected that actually live on THIS battlefield
   const selectedHere = selectedCards.filter((id) => bf[id]);
 
   function zoneCards(zone: "graveyard" | "exile" | "command"): ViewerCard[] {
@@ -105,8 +105,15 @@ export default function Seat({
     });
   }
 
-  // ---- card drag (self only) ----
-  function onCardMouseDown(e: React.MouseEvent, id: string, card: BattlefieldCard) {
+  function clearPress() {
+    if (press.current) {
+      clearTimeout(press.current.timer);
+      press.current = null;
+    }
+  }
+
+  // ---- pointer interaction (mouse + touch) ----
+  function onCardPointerDown(e: React.PointerEvent, id: string, card: BattlefieldCard) {
     if (!isSelf || e.button !== 0) return;
     if (e.shiftKey) {
       toggleSelection(id);
@@ -114,17 +121,41 @@ export default function Seat({
     }
     if (!selectedCards.includes(id)) setSelection([id]);
     const rect = fieldRef.current!.getBoundingClientRect();
+    try {
+      fieldRef.current!.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
     drag.current = {
       id,
       dx: e.clientX - rect.left - card.x,
       dy: e.clientY - rect.top - card.y,
+      moved: false,
     };
+    // long-press opens the action menu on touch
+    if (e.pointerType === "touch") {
+      const x = e.clientX;
+      const y = e.clientY;
+      press.current = {
+        x,
+        y,
+        timer: window.setTimeout(() => {
+          drag.current = null;
+          showCardMenu(x, y, id, card);
+        }, 450),
+      };
+    }
   }
 
-  function onFieldMouseDown(e: React.MouseEvent) {
+  function onFieldPointerDown(e: React.PointerEvent) {
     if (!isSelf || e.button !== 0) return;
     if (e.target !== fieldRef.current) return; // started on a card
     if (!e.shiftKey) clearSelection();
+    try {
+      fieldRef.current.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
     const rect = fieldRef.current.getBoundingClientRect();
     const m = {
       x0: e.clientX - rect.left,
@@ -136,12 +167,14 @@ export default function Seat({
     setMarquee(m);
   }
 
-  function onFieldMouseMove(e: React.MouseEvent) {
+  function onFieldPointerMove(e: React.PointerEvent) {
     if (!fieldRef.current) return;
     const rect = fieldRef.current.getBoundingClientRect();
     if (drag.current) {
       const x = Math.max(0, e.clientX - rect.left - drag.current.dx);
       const y = Math.max(0, e.clientY - rect.top - drag.current.dy);
+      clearPress(); // any movement cancels a pending long-press
+      drag.current.moved = true;
       const el = document.getElementById("bf-" + drag.current.id);
       if (el) {
         el.style.left = x + "px";
@@ -154,13 +187,16 @@ export default function Seat({
     }
   }
 
-  function onFieldMouseUp(e: React.MouseEvent) {
+  function onFieldPointerUp(e: React.PointerEvent) {
+    clearPress();
     if (!fieldRef.current) return;
     const rect = fieldRef.current.getBoundingClientRect();
     if (drag.current) {
-      const x = Math.max(0, e.clientX - rect.left - drag.current.dx);
-      const y = Math.max(0, e.clientY - rect.top - drag.current.dy);
-      updateBattlefieldCard(code, viewerUid, drag.current.id, { x, y });
+      if (drag.current.moved) {
+        const x = Math.max(0, e.clientX - rect.left - drag.current.dx);
+        const y = Math.max(0, e.clientY - rect.top - drag.current.dy);
+        updateBattlefieldCard(code, viewerUid, drag.current.id, { x, y });
+      }
       drag.current = null;
     } else if (marqueeRef.current) {
       const m = marqueeRef.current;
@@ -169,22 +205,15 @@ export default function Seat({
       const minY = Math.min(m.y0, m.y1);
       const maxY = Math.max(m.y0, m.y1);
       const hits = Object.entries(bf)
-        .filter(
-          ([, c]) =>
-            c.x < maxX && c.x + CARD_W > minX && c.y < maxY && c.y + CARD_H > minY,
-        )
+        .filter(([, c]) => c.x < maxX && c.x + CARD_W > minX && c.y < maxY && c.y + CARD_H > minY)
         .map(([id]) => id);
-      if (hits.length) {
-        setSelection(
-          e.shiftKey ? [...new Set([...selectedCards, ...hits])] : hits,
-        );
-      }
+      if (hits.length) setSelection(e.shiftKey ? [...new Set([...selectedCards, ...hits])] : hits);
       marqueeRef.current = null;
       setMarquee(null);
     }
   }
 
-  // ---- group / single card menu ----
+  // ---- card / group action menu ----
   function onFieldDrop(e: React.DragEvent) {
     if (!isSelf || !fieldRef.current) return;
     const raw = e.dataTransfer.getData("text/plain");
@@ -202,24 +231,20 @@ export default function Seat({
     moveCard(code, viewerUid, data.id, data.from as ZoneName, "battlefield", { x, y });
   }
 
-  function openCardMenu(e: React.MouseEvent, id: string, card: BattlefieldCard) {
+  function showCardMenu(clientX: number, clientY: number, id: string, card: BattlefieldCard) {
     if (!isSelf) return;
-    e.preventDefault();
-    // if right-clicking a selected card within a multi-selection, act on the group
     const group = selectedHere.length > 1 && selectedHere.includes(id);
     const targets = group ? selectedHere : [id];
     const reg = cards[id];
     const sc = reg ? cardCache[reg.scryfallId] : undefined;
     const hasBack = !!sc?.backImage;
-
     const each = (fn: (tid: string) => void) => () => targets.forEach(fn);
+
     const items: MenuItem[] = [
       {
         label: group ? `Tap ${targets.length}` : card.tapped ? "Untap" : "Tap",
         fn: each((tid) =>
-          updateBattlefieldCard(code, viewerUid, tid, {
-            tapped: group ? true : !bf[tid].tapped,
-          }),
+          updateBattlefieldCard(code, viewerUid, tid, { tapped: group ? true : !bf[tid].tapped }),
         ),
       },
     ];
@@ -241,9 +266,15 @@ export default function Seat({
     items.push(
       {
         label: "+1/+1 counter",
-        fn: each((tid) =>
-          setCounter(code, viewerUid, tid, "+1/+1", (bf[tid].counters?.["+1/+1"] ?? 0) + 1),
-        ),
+        fn: each((tid) => setCounter(code, viewerUid, tid, "+1/+1", (bf[tid].counters?.["+1/+1"] ?? 0) + 1)),
+      },
+      {
+        label: "Add counter…",
+        fn: () => {
+          const kind = prompt("Counter type (e.g. loyalty, charge, oil):");
+          if (!kind) return;
+          targets.forEach((tid) => setCounter(code, viewerUid, tid, kind, (bf[tid].counters?.[kind] ?? 0) + 1));
+        },
       },
       { label: "→ Hand", fn: each((tid) => moveCard(code, viewerUid, tid, "battlefield", "hand")) },
       { label: "→ Graveyard", fn: each((tid) => moveCard(code, viewerUid, tid, "battlefield", "graveyard")) },
@@ -251,17 +282,14 @@ export default function Seat({
       { label: "→ Command", fn: each((tid) => moveCard(code, viewerUid, tid, "battlefield", "command")) },
       { label: "→ Library top", fn: each((tid) => moveToLibrary(code, viewerUid, tid, "battlefield", true)) },
     );
-    setMenu({ x: e.clientX, y: e.clientY, items });
+    setMenu({ x: clientX, y: clientY, items });
   }
 
-  // ---- group action bar buttons ----
   function groupAction(fn: (id: string) => void) {
     selectedHere.forEach(fn);
   }
 
-  const cmdDmgTotal = life
-    ? Object.values(life.cmdDmg ?? {}).reduce((a, b) => a + b, 0)
-    : 0;
+  const cmdDmgTotal = life ? Object.values(life.cmdDmg ?? {}).reduce((a, b) => a + b, 0) : 0;
   const color = seatColor(player?.seat ?? 0);
 
   return (
@@ -300,29 +328,22 @@ export default function Seat({
       <div
         className="battlefield"
         ref={fieldRef}
-        onMouseDown={onFieldMouseDown}
-        onMouseMove={onFieldMouseMove}
-        onMouseUp={onFieldMouseUp}
-        onMouseLeave={onFieldMouseUp}
+        onPointerDown={onFieldPointerDown}
+        onPointerMove={onFieldPointerMove}
+        onPointerUp={onFieldPointerUp}
+        onPointerCancel={onFieldPointerUp}
         onDragOver={(e) => isSelf && e.preventDefault()}
         onDrop={onFieldDrop}
+        style={{ touchAction: isSelf ? "none" : undefined }}
       >
         {isSelf && selectedHere.length > 1 && (
           <div
             style={{
-              position: "absolute",
-              top: 4,
-              left: 4,
-              zIndex: 5,
-              display: "flex",
-              gap: 4,
-              flexWrap: "wrap",
-              background: "var(--panel)",
-              border: "1px solid var(--accent)",
-              borderRadius: "var(--radius)",
-              padding: 4,
+              position: "absolute", top: 4, left: 4, zIndex: 5, display: "flex", gap: 4,
+              flexWrap: "wrap", background: "var(--panel)", border: "1px solid var(--accent)",
+              borderRadius: "var(--radius)", padding: 4,
             }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             <span className="pill accent">{selectedHere.length} selected</span>
             <button onClick={() => groupAction((id) => updateBattlefieldCard(code, viewerUid, id, { tapped: true }))} style={{ fontSize: 11 }}>Tap</button>
@@ -340,24 +361,27 @@ export default function Seat({
             <div
               key={id}
               id={"bf-" + id}
-              className={
-                "bf-card" +
-                (card.tapped ? " tapped" : "") +
-                (selectedCards.includes(id) ? " selected" : "")
-              }
+              className={"bf-card" + (card.tapped ? " tapped" : "") + (selectedCards.includes(id) ? " selected" : "")}
               style={{ left: card.x, top: card.y }}
-              onMouseDown={(e) => onCardMouseDown(e, id, card)}
-              onContextMenu={(e) => openCardMenu(e, id, card)}
+              onPointerDown={(e) => onCardPointerDown(e, id, card)}
+              onContextMenu={(e) => {
+                if (!isSelf) return;
+                e.preventDefault();
+                showCardMenu(e.clientX, e.clientY, id, card);
+              }}
             >
               <CardView scryfallId={reg?.scryfallId} name={reg?.name} back={card.flipped} faceDown={card.faceDown} />
-              {card.counters &&
-                Object.entries(card.counters).map(([k, v]) =>
-                  v ? (
-                    <span key={k} className="counter-badge">
-                      {v}
-                    </span>
-                  ) : null,
-                )}
+              {card.counters && Object.values(card.counters).some(Boolean) && (
+                <div className="counter-stack">
+                  {Object.entries(card.counters).map(([k, v]) =>
+                    v ? (
+                      <span key={k} className="counter-badge" title={k}>
+                        {k === "+1/+1" ? `+${v}` : `${k.slice(0, 3)} ${v}`}
+                      </span>
+                    ) : null,
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -380,7 +404,7 @@ export default function Seat({
 
         {isSelf && (
           <div className="muted" style={{ position: "absolute", bottom: 4, left: 6, fontSize: 11 }}>
-            drag empty space to box-select · shift-click to add · right-click for actions
+            drag empty space to box-select · shift-click to add · right-click (or long-press) for actions
           </div>
         )}
       </div>

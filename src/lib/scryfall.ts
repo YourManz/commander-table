@@ -131,11 +131,20 @@ export async function resolveIds(ids: string[]): Promise<Map<string, ScryCard>> 
 
 // Free-text token search (for one-off tokens not on a card's all_parts).
 export async function searchTokens(query: string): Promise<ScryCard[]> {
-  const q = encodeURIComponent(`t:token ${query}`);
+  return rawSearch(`t:token ${query}`);
+}
+
+// General card search (for putting any card into play / testing).
+export async function searchCards(query: string): Promise<ScryCard[]> {
+  return rawSearch(query);
+}
+
+async function rawSearch(query: string): Promise<ScryCard[]> {
+  const q = encodeURIComponent(query);
   const res = await fetch(`https://api.scryfall.com/cards/search?q=${q}&unique=cards`);
   if (!res.ok) return [];
   const data = (await res.json()) as { data: RawCard[] };
-  const cards = data.data.slice(0, 20).map(normalize);
+  const cards = data.data.slice(0, 24).map(normalize);
   await cacheCards(cards);
   return cards;
 }
